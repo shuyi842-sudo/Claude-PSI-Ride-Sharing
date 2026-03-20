@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>乘客端 - 无人驾驶拼车系统</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-link">← 返回首页</a>
+            <h1>👤 乘客端</h1>
+        </div>
+
+        <div class="card">
+            <h2>发布出行需求</h2>
+            <form id="passengerForm">
+                <div class="form-group">
+                    <label for="passengerId">乘客ID</label>
+                    <input type="text" id="passengerId" placeholder="例如：P001" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="startLocation">起点</label>
+                    <input type="text" id="startLocation" placeholder="例如：北京中关村" value="北京中关村" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="endLocation">终点</label>
+                    <input type="text" id="endLocation" placeholder="例如：北京西站" value="北京西站" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="matchBtn">
+                    <span>🔍 请求匹配</span>
+                </button>
+            </form>
+        </div>
+
+        <div id="resultSection" class="card hidden">
+            <h2>匹配结果</h2>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('passengerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const passengerId = document.getElementById('passengerId').value;
+            const start = document.getElementById('startLocation').value;
+            const end = document.getElementById('endLocation').value;
+            const matchBtn = document.getElementById('matchBtn');
+            const resultSection = document.getElementById('resultSection');
+            const resultContent = document.getElementById('resultContent');
+
+            // 先注册乘客
+            try {
+                matchBtn.disabled = true;
+                matchBtn.innerHTML = '<span class="loading"></span> 注册中...';
+
+                await fetch('/passenger/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        passenger_id: passengerId,
+                        start: start,
+                        end: end
+                    })
+                });
+
+                // 请求匹配
+                matchBtn.innerHTML = '<span class="loading"></span> 匹配中...';
+
+                const response = await fetch('/match', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ passenger_id: passengerId })
+                });
+
+                const result = await response.json();
+                matchBtn.disabled = false;
+                matchBtn.innerHTML = '<span>🔍 请求匹配</span>';
+
+                resultSection.classList.remove('hidden');
+
+                if (result.success) {
+                    resultContent.innerHTML = `
+                        <div class="success-message">
+                            <h3>✅ 匹配成功！</h3>
+                            <div class="match-details">
+                                <p><strong>车辆ID：</strong>${result.vehicle.id}</p>
+                                <p><strong>车辆路线：</strong>${result.vehicle.start} → ${result.vehicle.end}</p>
+                                <p><strong>剩余座位：</strong>${result.vehicle.seats}</p>
+                                <p><strong>上车验证码：</strong><code class="verification-code">${result.match_code}</code></p>
+                            </div>
+                            <p class="hint">请向司机出示验证码完成上车验证</p>
+                        </div>
+                    `;
+                } else {
+                    resultContent.innerHTML = `
+                        <div class="error-message">
+                            <h3>❌ ${result.message}</h3>
+                            <p>请稍后重试，或等待更多车辆上线</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                matchBtn.disabled = false;
+                matchBtn.innerHTML = '<span>🔍 请求匹配</span>';
+                resultSection.classList.remove('hidden');
+                resultContent.innerHTML = `
+                    <div class="error-message">
+                        <h3>❌ 请求失败</h3>
+                        <p>网络错误或服务器未启动</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>车辆端 - 无人驾驶拼车系统</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-link">← 返回首页</a>
+            <h1>🚙 车辆端</h1>
+        </div>
+
+        <div class="card">
+            <h2>注册车辆</h2>
+            <form id="vehicleForm">
+                <div class="form-group">
+                    <label for="vehicleId">车辆ID</label>
+                    <input type="text" id="vehicleId" placeholder="例如：V001" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="startLocation">起点</label>
+                    <input type="text" id="startLocation" placeholder="例如：北京中关村" value="北京中关村" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="endLocation">终点</label>
+                    <input type="text" id="endLocation" placeholder="例如：北京西站" value="北京西站" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="seats">座位数</label>
+                    <input type="number" id="seats" min="1" max="10" value="4" required>
+                </div>
+
+                <div class="button-row">
+                    <button type="submit" class="btn btn-primary" id="registerBtn">
+                        <span>📝 注册车辆</span>
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="checkBtn">
+                        <span>👥 查看乘客</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="passengerSection" class="card hidden">
+            <h2>匹配的乘客列表</h2>
+            <div id="passengerContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const vehicleForm = document.getElementById('vehicleForm');
+        const registerBtn = document.getElementById('registerBtn');
+        const checkBtn = document.getElementById('checkBtn');
+        const passengerSection = document.getElementById('passengerSection');
+        const passengerContent = document.getElementById('passengerContent');
+
+        // 注册车辆
+        vehicleForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const vehicleId = document.getElementById('vehicleId').value;
+            const start = document.getElementById('startLocation').value;
+            const end = document.getElementById('endLocation').value;
+            const seats = document.getElementById('seats').value;
+
+            try {
+                registerBtn.disabled = true;
+                registerBtn.innerHTML = '<span class="loading"></span> 注册中...';
+
+                const response = await fetch('/vehicle/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        vehicle_id: vehicleId,
+                        start: start,
+                        end: end,
+                        seats: parseInt(seats)
+                    })
+                });
+
+                const result = await response.json();
+                registerBtn.disabled = false;
+                registerBtn.innerHTML = '<span>📝 注册车辆</span>';
+
+                if (result.vehicle) {
+                    showNotification('✅ 车辆注册成功！', 'success');
+                } else {
+                    showNotification('❌ 注册失败：' + (result.error || '未知错误'), 'error');
+                }
+            } catch (error) {
+                registerBtn.disabled = false;
+                registerBtn.innerHTML = '<span>📝 注册车辆</span>';
+                showNotification('❌ 网络错误或服务器未启动', 'error');
+            }
+        });
+
+        // 查看乘客
+        checkBtn.addEventListener('click', async () => {
+            const vehicleId = document.getElementById('vehicleId').value;
+
+            if (!vehicleId) {
+                showNotification('❌ 请先输入车辆ID', 'error');
+                return;
+            }
+
+            try {
+                checkBtn.disabled = true;
+                checkBtn.innerHTML = '<span class="loading"></span> 查询中...';
+
+                const response = await fetch(`/vehicle/check?vehicle_id=${vehicleId}`);
+                const result = await response.json();
+                checkBtn.disabled = false;
+                checkBtn.innerHTML = '<span>👥 查看乘客</span>';
+
+                passengerSection.classList.remove('hidden');
+
+                const passengers = result.matched_passengers || [];
+                const vehicle = result.vehicle || {};
+
+                if (passengers.length === 0) {
+                    passengerContent.innerHTML = `
+                        <div class="empty-state">
+                            <p>暂无匹配的乘客</p>
+                            <p class="hint">车辆状态：${vehicle.status || '未注册'}</p>
+                            ${vehicle.seats !== undefined ? `<p class="hint">剩余座位：${vehicle.seats}</p>` : ''}
+                        </div>
+                    `;
+                } else {
+                    passengerContent.innerHTML = `
+                        <div class="vehicle-info">
+                            <p><strong>车辆ID：</strong>${vehicle.id}</p>
+                            <p><strong>路线：</strong>${vehicle.start} → ${vehicle.end}</p>
+                            <p><strong>剩余座位：</strong>${vehicle.seats}</p>
+                        </div>
+                        <table class="passenger-table">
+                            <thead>
+                                <tr>
+                                    <th>乘客ID</th>
+                                    <th>起点</th>
+                                    <th>终点</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${passengers.map(p => `
+                                    <tr>
+                                        <td>${p.id}</td>
+                                        <td>${p.start}</td>
+                                        <td>${p.end}</td>
+                                        <td><span class="status-badge matched">${p.status}</span></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+            } catch (error) {
+                checkBtn.disabled = false;
+                checkBtn.innerHTML = '<span>👥 查看乘客</span>';
+                passengerSection.classList.remove('hidden');
+                passengerContent.innerHTML = `
+                    <div class="error-message">
+                        <p>❌ 查询失败，请确保车辆已注册</p>
+                    </div>
+                `;
+            }
+        });
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

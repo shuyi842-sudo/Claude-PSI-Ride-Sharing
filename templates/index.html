@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无人驾驶拼车系统</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚗 无人驾驶拼车系统 MVP</h1>
+            <p class="subtitle">基于PSI隐私保护的智能拼车平台</p>
+        </div>
+
+        <div class="selection-box">
+            <h2>请选择您的身份</h2>
+
+            <div class="button-group">
+                <a href="/passenger" class="selection-card passenger-card">
+                    <div class="icon">👤</div>
+                    <h3>乘客端</h3>
+                    <p>发布出行需求，匹配合适车辆</p>
+                </a>
+
+                <a href="/vehicle" class="selection-card vehicle-card">
+                    <div class="icon">🚙</div>
+                    <h3>车辆端</h3>
+                    <p>注册车辆信息，查看匹配乘客</p>
+                </a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Powered by Flask + PSI隐私计算</p>
+        </div>
+    </div>
+</body>
+</html>
