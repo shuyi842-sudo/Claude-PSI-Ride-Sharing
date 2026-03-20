@@ -108,6 +108,11 @@ body {
     border-color: #ff9800;
 }
 
+.verify-card {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-color: #4CAF50;
+}
+
 .selection-card .icon {
     font-size: 3rem;
     margin-bottom: 10px;
@@ -283,6 +288,74 @@ body {
     color: var(--text-light);
     font-size: 0.85rem;
     margin-top: 8px;
+}
+
+/* Success Animation */
+.success-animation {
+    animation: successPulse 0.5s ease-out;
+}
+
+@keyframes successPulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.success-details {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #c8e6c9;
+}
+
+.success-details p {
+    margin-bottom: 4px;
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+/* Info Card */
+.info-card {
+    background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+}
+
+.info-card h2 {
+    color: #7b1fa2;
+}
+
+.info-text {
+    margin-bottom: 12px;
+    color: var(--text-color);
+}
+
+.info-text strong {
+    color: #7b1fa2;
+}
+
+.info-list {
+    list-style: none;
+    padding: 0;
+}
+
+.info-list li {
+    padding: 8px 0;
+    padding-left: 20px;
+    position: relative;
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+.info-list li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: #7b1fa2;
+    font-weight: bold;
 }
 
 /* Passenger Table */

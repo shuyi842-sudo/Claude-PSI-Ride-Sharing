@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上车验证 - 无人驾驶拼车系统</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-link">← 返回首页</a>
+            <h1>🔐 上车验证</h1>
+            <p class="subtitle">基于PSI隐私保护的身份验证</p>
+        </div>
+
+        <div class="card">
+            <h2>乘客验证上车</h2>
+            <form id="verifyForm">
+                <div class="form-group">
+                    <label for="passengerId">乘客ID</label>
+                    <input type="text" id="passengerId" placeholder="例如：P001" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="vehicleId">车辆ID</label>
+                    <input type="text" id="vehicleId" placeholder="例如：V001" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="verifyCode">上车验证码</label>
+                    <input type="text" id="verifyCode" placeholder="6位验证码" maxlength="6" required>
+                    <p class="hint">验证码由乘客匹配成功时获得，基于PSI隐私计算生成</p>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="verifyBtn">
+                    <span>✓ 验证上车</span>
+                </button>
+            </form>
+        </div>
+
+        <div id="resultSection" class="card hidden">
+            <div id="resultContent"></div>
+        </div>
+
+        <div class="card info-card">
+            <h2>🔒 PSI隐私保护原理</h2>
+            <p class="info-text">
+                验证码基于 <strong>隐私集合求交(PSI)</strong> 技术生成：
+            </p>
+            <ul class="info-list">
+                <li>使用乘客ID和车辆ID作为输入</li>
+                <li>通过哈希函数生成唯一标识</li>
+                <li>无需传输原始信息即可完成验证</li>
+                <li>防止中间人攻击和身份冒用</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('verifyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const passengerId = document.getElementById('passengerId').value;
+            const vehicleId = document.getElementById('vehicleId').value;
+            const verifyCode = document.getElementById('verifyCode').value;
+            const verifyBtn = document.getElementById('verifyBtn');
+            const resultSection = document.getElementById('resultSection');
+            const resultContent = document.getElementById('resultContent');
+
+            try {
+                verifyBtn.disabled = true;
+                verifyBtn.innerHTML = '<span class="loading"></span> 验证中...';
+
+                const response = await fetch('/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        passenger_id: passengerId,
+                        vehicle_id: vehicleId,
+                        code: verifyCode.toUpperCase()
+                    })
+                });
+
+                const result = await response.json();
+                verifyBtn.disabled = false;
+                verifyBtn.innerHTML = '<span>✓ 验证上车</span>';
+
+                resultSection.classList.remove('hidden');
+
+                if (result.success) {
+                    resultContent.innerHTML = `
+                        <div class="success-message success-animation">
+                            <h3>✅ 验证成功，可以上车！</h3>
+                            <p>${result.message}</p>
+                            <div class="success-details">
+                                <p>乘客：${passengerId}</p>
+                                <p>车辆：${vehicleId}</p>
+                                <p>验证时间：${new Date().toLocaleString()}</p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultContent.innerHTML = `
+                        <div class="error-message">
+                            <h3>❌ 验证失败</h3>
+                            <p>${result.message}</p>
+                            <p class="hint">请检查验证码是否正确，或确保乘客已完成匹配</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                verifyBtn.disabled = false;
+                verifyBtn.innerHTML = '<span>✓ 验证上车</span>';
+                resultSection.classList.remove('hidden');
+                resultContent.innerHTML = `
+                    <div class="error-message">
+                        <h3>❌ 请求失败</h3>
+                        <p>网络错误或服务器未启动</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

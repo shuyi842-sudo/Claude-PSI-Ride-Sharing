@@ -40,6 +40,10 @@ def passenger_page():
 def vehicle_page():
     return render_template("vehicle.html")
 
+@app.route("/verify")
+def verify_page():
+    return render_template("verify.html")
+
 @app.route("/passenger/register", methods=["POST"])
 def passenger_register():
     data = request.json
