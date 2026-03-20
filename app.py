@@ -121,6 +121,32 @@ def verify():
     else:
         return jsonify({"success": False, "message": "验证失败！"})
 
+@app.route("/cancel", methods=["POST"])
+def cancel_match():
+    """取消乘客匹配，释放车辆座位"""
+    data = request.json
+    p_id = data.get("passenger_id")
+    if p_id not in passengers:
+        return jsonify({"error": "乘客未注册"}), 404
+    if passengers[p_id]["status"] != "matched":
+        return jsonify({"error": "乘客未处于匹配状态"}), 400
+    if p_id not in matches:
+        return jsonify({"error": "无匹配记录"}), 404
+    v_id = matches[p_id]
+    # 释放座位
+    vehicles[v_id]["seats"] += 1
+    if vehicles[v_id]["seats"] > 0:
+        vehicles[v_id]["status"] = "available"
+    # 移除匹配关系
+    if p_id in vehicles_passengers[v_id]:
+        vehicles_passengers[v_id].remove(p_id)
+    del matches[p_id]
+    passengers[p_id]["status"] = "waiting"
+    return jsonify({
+        "success": True,
+        "message": "匹配已取消，座位已释放"
+    })
+
 def generate_match_code(p_id, v_id):
     raw = f"{p_id}{v_id}"
     return hashlib.md5(raw.encode()).hexdigest()[:6].upper()

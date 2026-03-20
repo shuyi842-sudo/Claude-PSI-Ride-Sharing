@@ -225,6 +225,15 @@ body {
     background-color: #f0f7ff;
 }
 
+.btn-danger {
+    background-color: var(--error-color);
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #d32f2f;
+}
+
 /* Loading Animation */
 .loading {
     display: inline-block;

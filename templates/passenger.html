@@ -41,9 +41,17 @@
             <h2>匹配结果</h2>
             <div id="resultContent"></div>
         </div>
+
+        <div id="statusSection" class="card hidden">
+            <h2>当前状态</h2>
+            <div id="statusContent"></div>
+        </div>
     </div>
 
     <script>
+        let currentPassengerId = null;
+        let matchedVehicleId = null;
+
         document.getElementById('passengerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -53,6 +61,10 @@
             const matchBtn = document.getElementById('matchBtn');
             const resultSection = document.getElementById('resultSection');
             const resultContent = document.getElementById('resultContent');
+            const statusSection = document.getElementById('statusSection');
+
+            currentPassengerId = passengerId;
+            statusSection.classList.add('hidden');
 
             // 先注册乘客
             try {
@@ -85,6 +97,7 @@
                 resultSection.classList.remove('hidden');
 
                 if (result.success) {
+                    matchedVehicleId = result.vehicle.id;
                     resultContent.innerHTML = `
                         <div class="success-message">
                             <h3>✅ 匹配成功！</h3>
@@ -94,10 +107,16 @@
                                 <p><strong>剩余座位：</strong>${result.vehicle.seats}</p>
                                 <p><strong>上车验证码：</strong><code class="verification-code">${result.match_code}</code></p>
                             </div>
+                            <button class="btn btn-danger" id="cancelBtn" style="margin-top: 12px;">
+                                <span>✕ 取消匹配</span>
+                            </button>
                             <p class="hint">请向司机出示验证码完成上车验证</p>
                         </div>
                     `;
+                    // 绑定取消按钮事件
+                    document.getElementById('cancelBtn').addEventListener('click', cancelMatch);
                 } else {
+                    matchedVehicleId = null;
                     resultContent.innerHTML = `
                         <div class="error-message">
                             <h3>❌ ${result.message}</h3>
@@ -117,6 +136,44 @@
                 `;
             }
         });
+
+        async function cancelMatch() {
+            if (!currentPassengerId) return;
+
+            const cancelBtn = document.getElementById('cancelBtn');
+            const resultSection = document.getElementById('resultSection');
+            const resultContent = document.getElementById('resultContent');
+
+            try {
+                cancelBtn.disabled = true;
+                cancelBtn.innerHTML = '<span class="loading" style="border-color: #f44336; border-top-color: transparent;"></span> 取消中...';
+
+                const response = await fetch('/cancel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ passenger_id: currentPassengerId })
+                });
+
+                const result = await response.json();
+                matchedVehicleId = null;
+
+                resultContent.innerHTML = `
+                    <div class="success-message">
+                        <h3>✓ ${result.message}</h3>
+                        <p class="hint">座位已释放，您可以重新发起匹配</p>
+                    </div>
+                `;
+            } catch (error) {
+                cancelBtn.disabled = false;
+                cancelBtn.innerHTML = '<span>✕ 取消匹配</span>';
+                resultContent.innerHTML = `
+                    <div class="error-message">
+                        <h3>❌ 取消失败</h3>
+                        <p>网络错误或服务器未启动</p>
+                    </div>
+                `;
+            }
+        }
     </script>
 </body>
 </html>
