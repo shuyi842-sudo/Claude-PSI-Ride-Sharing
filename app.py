@@ -151,6 +151,16 @@ def generate_match_code(p_id, v_id):
     raw = f"{p_id}{v_id}"
     return hashlib.md5(raw.encode()).hexdigest()[:6].upper()
 
+@app.route("/reset", methods=["POST"])
+def reset_data():
+    """重置所有数据（仅用于测试）"""
+    global passengers, vehicles, matches, vehicles_passengers
+    passengers.clear()
+    vehicles.clear()
+    matches.clear()
+    vehicles_passengers.clear()
+    return jsonify({"message": "数据已重置"})
+
 if __name__ == "__main__":
     print("=" * 50)
     print("无人驾驶拼车系统 MVP")
