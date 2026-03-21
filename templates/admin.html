@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 无人驾驶拼车系统</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .admin-layout {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 20px;
+            min-height: 80vh;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .sidebar h3 {
+            margin-top: 0;
+            color: var(--text-color);
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+
+        .nav-item {
+            display: block;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: var(--text-light);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .dashboard-content {
+            display: grid;
+            gap: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-card.success {
+            background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
+        }
+
+        .stat-card.warning {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+        }
+
+        .stat-card.danger {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+            overflow-x: auto;
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .admin-table th,
+        .admin-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .admin-table th {
+            background: var(--bg-color);
+            font-weight: 500;
+        }
+
+        .admin-table tr:hover {
+            background: var(--bg-color);
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-dot.available { background: #4CAF50; }
+        .status-dot.full { background: #f44336; }
+        .status-dot.matched { background: #2196F3; }
+        .status-dot.waiting { background: #ff9800; }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+
+        .psi-status {
+            background: #f3e5f5;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 20px;
+        }
+
+        .psi-status h4 {
+            margin: 0 0 10px 0;
+            color: #7b1fa2;
+        }
+
+        .psi-current-mode {
+            font-size: 1.2rem;
+            color: #7b1fa2;
+            font-weight: bold;
+        }
+
+        .mode-select {
+            margin-top: 10px;
+        }
+
+        .mode-select select {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .admin-layout {
+                grid-template-columns: 1fr;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-link">← 返回首页</a>
+            <h1>🔧 管理后台</h1>
+        </div>
+
+        <div class="admin-layout">
+            <div class="sidebar">
+                <h3>📋 导航菜单</h3>
+                <a class="nav-item active" onclick="showSection('dashboard')">📊 仪表盘</a>
+                <a class="nav-item" onclick="showSection('passengers')">👤 乘客管理</a>
+                <a class="nav-item" onclick="showSection('vehicles')">🚙 车辆管理</a>
+                <a class="nav-item" onclick="showSection('matches')">🔗 匹配记录</a>
+                <a class="nav-item" onclick="showSection('psi')">🔐 PSI配置</a>
+
+                <div class="psi-status">
+                    <h4>PSI 模式</h4>
+                    <div class="psi-current-mode" id="currentPsiMode">加载中...</div>
+                    <div class="mode-select">
+                        <select id="psiModeSelect" onchange="changePsiMode()">
+                            <option value="hash">MD5哈希（兼容）</option>
+                            <option value="ecc">ECC双方PSI</option>
+                            <option value="multi">ECC多方PSI</option>
+                            <option value="threshold">门限PSI</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-danger btn-sm" onclick="resetSystem()">🔄 重置系统</button>
+                </div>
+            </div>
+
+            <div class="dashboard-content">
+                <!-- 仪表盘 -->
+                <div id="section-dashboard" class="content-section">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">在线车辆</div>
+                            <div class="stat-number" id="statVehicles">0</div>
+                        </div>
+                        <div class="stat-card success">
+                            <div class="stat-label">注册乘客</div>
+                            <div class="stat-number" id="statPassengers">0</div>
+                        </div>
+                        <div class="stat-card warning">
+                            <div class="stat-label">活跃匹配</div>
+                            <div class="stat-number" id="statMatches">0</div>
+                        </div>
+                        <div class="stat-card danger">
+                            <div class="stat-label">满载车辆</div>
+                            <div class="stat-number" id="statFull">0</div>
+                        </div>
+                    </div>
+
+                    <div class="chart-container" style="margin-top: 20px;">
+                        <h3>📈 匹配趋势</h3>
+                        <canvas id="matchChart" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- 乘客管理 -->
+                <div id="section-passengers" class="content-section hidden">
+                    <div class="table-container">
+                        <h3>👤 乘客列表</h3>
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>乘客ID</th>
+                                    <th>起点</th>
+                                    <th>终点</th>
+                                    <th>状态</th>
+                                    <th>创建时间</th>
+                                </tr>
+                            </thead>
+                            <tbody id="passengerTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 车辆管理 -->
+                <div id="section-vehicles" class="content-section hidden">
+                    <div class="table-container">
+                        <h3>🚙 车辆列表</h3>
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>车辆ID</th>
+                                    <th>起点</th>
+                                    <th>终点</th>
+                                    <th>座位</th>
+                                    <th>状态</th>
+                                    <th>创建时间</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vehicleTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 匹配记录 -->
+                <div id="section-matches" class="content-section hidden">
+                    <div class="table-container">
+                        <h3>🔗 匹配记录</h3>
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>乘客ID</th>
+                                    <th>车辆ID</th>
+                                    <th>验证码</th>
+                                    <th>状态</th>
+                                    <th>创建时间</th>
+                                </tr>
+                            </thead>
+                            <tbody id="matchTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- PSI配置 -->
+                <div id="section-psi" class="content-section hidden">
+                    <div class="card">
+                        <h3>🔐 PSI协议配置</h3>
+                        <div id="psiConfigInfo"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let matchChart = null;
+        let matchHistory = [];
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            loadDashboard();
+            loadPsiConfig();
+        });
+
+        // 初始化图表
+        function initChart() {
+            const ctx = document.getElementById('matchChart').getContext('2d');
+            matchChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '匹配数量',
+                        data: [],
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // 加载仪表盘数据
+        async function loadDashboard() {
+            try {
+                const [passengersRes, vehiclesRes, matchesRes] = await Promise.all([
+                    fetch('/admin/passengers'),
+                    fetch('/admin/vehicles'),
+                    fetch('/admin/matches')
+                ]);
+
+                const passengers = await passengersRes.json();
+                const vehicles = await vehiclesRes.json();
+                const matches = await matchesRes.json();
+
+                // 更新统计
+                document.getElementById('statPassengers').textContent = passengers.length || 0;
+                document.getElementById('statVehicles').textContent = vehicles.length || 0;
+                document.getElementById('statMatches').textContent = matches.length || 0;
+
+                const fullVehicles = vehicles.filter(v => v.status === 'full').length;
+                document.getElementById('statFull').textContent = fullVehicles;
+
+                // 更新图表
+                const now = new Date();
+                const label = now.toLocaleTimeString();
+                matchHistory.push({ time: label, count: matches.length || 0 });
+                if (matchHistory.length > 10) matchHistory.shift();
+
+                matchChart.data.labels = matchHistory.map(h => h.time);
+                matchChart.data.datasets[0].data = matchHistory.map(h => h.count);
+                matchChart.update();
+
+            } catch (error) {
+                console.error('加载仪表盘失败:', error);
+            }
+        }
+
+        // 加载PSI配置
+        async function loadPsiConfig() {
+            try {
+                const res = await fetch('/psi/config');
+                const data = await res.json();
+                document.getElementById('currentPsiMode').textContent = PSI_MODES[data.current_mode];
+                document.getElementById('psiModeSelect').value = data.current_mode;
+
+                document.getElementById('psiConfigInfo').innerHTML = `
+                    <p><strong>当前模式:</strong> ${data.description}</p>
+                    <p><strong>可用模式:</strong></p>
+                    <ul>
+                        ${Object.entries(data.available_modes).map(([k, v]) =>
+                            `<li>${k}: ${v}</li>`
+                        ).join('')}
+                    </ul>
+                `;
+            } catch (error) {
+                console.error('加载PSI配置失败:', error);
+            }
+        }
+
+        const PSI_MODES = {
+            'hash': 'MD5哈希（兼容模式）',
+            'ecc': 'ECC双方PSI',
+            'multi': 'ECC多方PSI',
+            'threshold': '门限PSI'
+        };
+
+        // 切换PSI模式
+        async function changePsiMode() {
+            const mode = document.getElementById('psiModeSelect').value;
+            try {
+                const res = await fetch('/psi/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode })
+                });
+                const data = await res.json();
+                document.getElementById('currentPsiMode').textContent = PSI_MODES[data.current_mode];
+                alert(data.message);
+            } catch (error) {
+                alert('切换PSI模式失败');
+            }
+        }
+
+        // 显示页面
+        function showSection(section) {
+            document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(`section-${section}`).classList.remove('hidden');
+            event.target.classList.add('active');
+
+            if (section === 'passengers') loadPassengers();
+            if (section === 'vehicles') loadVehicles();
+            if (section === 'matches') loadMatches();
+            if (section === 'psi') loadPsiConfig();
+        }
+
+        // 加载乘客列表
+        async function loadPassengers() {
+            try {
+                const res = await fetch('/admin/passengers');
+                const passengers = await res.json();
+                const tbody = document.getElementById('passengerTable');
+                tbody.innerHTML = passengers.map(p => `
+                    <tr>
+                        <td>${p.id}</td>
+                        <td>${p.start}</td>
+                        <td>${p.end}</td>
+                        <td><span class="status-dot ${p.status}"></span>${p.status}</td>
+                        <td>${new Date(p.created_at).toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('加载乘客列表失败:', error);
+            }
+        }
+
+        // 加载车辆列表
+        async function loadVehicles() {
+            try {
+                const res = await fetch('/admin/vehicles');
+                const vehicles = await res.json();
+                const tbody = document.getElementById('vehicleTable');
+                tbody.innerHTML = vehicles.map(v => `
+                    <tr>
+                        <td>${v.id}</td>
+                        <td>${v.start}</td>
+                        <td>${v.end}</td>
+                        <td>${v.seats}</td>
+                        <td><span class="status-dot ${v.status}"></span>${v.status}</td>
+                        <td>${new Date(v.created_at).toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('加载车辆列表失败:', error);
+            }
+        }
+
+        // 加载匹配记录
+        async function loadMatches() {
+            try {
+                const res = await fetch('/admin/matches');
+                const matches = await res.json();
+                const tbody = document.getElementById('matchTable');
+                tbody.innerHTML = matches.map(m => `
+                    <tr>
+                        <td>${m.passenger_id}</td>
+                        <td>${m.vehicle_id}</td>
+                        <td><code>${m.match_code}</code></td>
+                        <td>${m.status}</td>
+                        <td>${new Date(m.created_at).toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('加载匹配记录失败:', error);
+            }
+        }
+
+        // 重置系统
+        async function resetSystem() {
+            if (!confirm('确定要重置系统吗？这将清空所有数据！')) return;
+            try {
+                await fetch('/reset', { method: 'POST' });
+                alert('系统已重置');
+                loadDashboard();
+            } catch (error) {
+                alert('重置失败');
+            }
+        }
+    </script>
+</body>
+</html>

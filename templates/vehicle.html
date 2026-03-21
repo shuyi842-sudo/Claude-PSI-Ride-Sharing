@@ -5,16 +5,126 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>车辆端 - 无人驾驶拼车系统</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            padding: 4px 12px;
+            border-radius: 12px;
+            background: #f5f7fa;
+        }
+
+        .status-indicator.connected {
+            background: #e8f5e9;
+            color: #4CAF50;
+        }
+
+        .status-indicator.disconnected {
+            background: #ffebee;
+            color: #f44336;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .connected .status-dot {
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        .disconnected .status-dot {
+            background: #f44336;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .notification-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            transform: translateY(-100%);
+            transition: transform 0.3s ease-out;
+            z-index: 1000;
+        }
+
+        .notification-banner.show {
+            transform: translateY(0);
+        }
+
+        .notification-banner .close {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .passenger-row.new {
+            animation: highlight 2s ease-out;
+        }
+
+        @keyframes highlight {
+            0% { background: #fff3e0; }
+            100% { background: transparent; }
+        }
+
+        .realtime-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 0.75rem;
+        }
+    </style>
 </head>
 <body>
+    <div id="notificationBanner" class="notification-banner">
+        <button class="close" onclick="closeNotification()">×</button>
+        <span id="notificationText"></span>
+    </div>
+
     <div class="container">
         <div class="header">
             <a href="/" class="back-link">← 返回首页</a>
-            <h1>🚙 车辆端</h1>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <h1>🚙 车辆端</h1>
+                <div id="connectionStatus" class="status-indicator disconnected">
+                    <span class="status-dot"></span>
+                    <span class="text">未连接</span>
+                </div>
+            </div>
         </div>
 
         <div class="card">
-            <h2>注册车辆</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>注册车辆</h2>
+                <span class="realtime-badge">
+                    <span>🔴</span> 实时推送
+                </span>
+            </div>
             <form id="vehicleForm">
                 <div class="form-group">
                     <label for="vehicleId">车辆ID</label>
@@ -48,17 +158,115 @@
         </div>
 
         <div id="passengerSection" class="card hidden">
-            <h2>匹配的乘客列表</h2>
+            <h2>匹配的乘客列表 <span class="realtime-badge" style="margin-left: 10px;">自动刷新</span></h2>
             <div id="passengerContent"></div>
         </div>
     </div>
 
     <script>
+        let socket = null;
+        let currentVehicleId = null;
+        let passengers = [];
+
         const vehicleForm = document.getElementById('vehicleForm');
         const registerBtn = document.getElementById('registerBtn');
         const checkBtn = document.getElementById('checkBtn');
         const passengerSection = document.getElementById('passengerSection');
         const passengerContent = document.getElementById('passengerContent');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        // 初始化 Socket.IO 连接
+        function initSocket() {
+            socket = io({
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 5
+            });
+
+            socket.on('connect', () => {
+                console.log('WebSocket 已连接');
+                updateConnectionStatus(true);
+
+                // 如果有车辆ID，加入车辆房间
+                if (currentVehicleId) {
+                    joinVehicleRoom(currentVehicleId);
+                }
+            });
+
+            socket.on('disconnect', () => {
+                console.log('WebSocket 已断开');
+                updateConnectionStatus(false);
+            });
+
+            socket.on('connected', (data) => {
+                console.log('服务器确认连接:', data);
+            });
+
+            socket.on('joined', (data) => {
+                console.log('已加入车辆房间:', data);
+            });
+
+            // 新乘客匹配通知
+            socket.on('new_passenger', (data) => {
+                console.log('新乘客匹配:', data);
+                showNotification(`🎉 新乘客 ${data.passenger.id} 已匹配！`);
+                refreshPassengerList();
+            });
+
+            // 乘客上车通知
+            socket.on('passenger_boarded', (data) => {
+                console.log('乘客已上车:', data);
+                showNotification(`✓ 乘客 ${data.passenger_id} 已上车`);
+                refreshPassengerList();
+            });
+
+            // 乘客取消通知
+            socket.on('passenger_cancelled', (data) => {
+                console.log('乘客已取消:', data);
+                showNotification(`✕ 乘客 ${data.passenger_id} 已取消匹配`);
+                refreshPassengerList();
+            });
+
+            // 系统重置通知
+            socket.on('system_reset', (data) => {
+                console.log('系统已重置:', data);
+                showNotification('🔄 系统已重置');
+                refreshPassengerList();
+            });
+        }
+
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                connectionStatus.className = 'status-indicator connected';
+                connectionStatus.innerHTML = '<span class="status-dot"></span><span class="text">已连接</span>';
+            } else {
+                connectionStatus.className = 'status-indicator disconnected';
+                connectionStatus.innerHTML = '<span class="status-dot"></span><span class="text">未连接</span>';
+            }
+        }
+
+        function joinVehicleRoom(vehicleId) {
+            if (socket && socket.connected) {
+                socket.emit('join_vehicle', { vehicle_id: vehicleId });
+                console.log('加入车辆房间:', vehicleId);
+            }
+        }
+
+        function showNotification(text) {
+            const banner = document.getElementById('notificationBanner');
+            const notificationText = document.getElementById('notificationText');
+            notificationText.textContent = text;
+            banner.classList.add('show');
+
+            setTimeout(() => {
+                banner.classList.remove('show');
+            }, 4000);
+        }
+
+        function closeNotification() {
+            document.getElementById('notificationBanner').classList.remove('show');
+        }
 
         // 注册车辆
         vehicleForm.addEventListener('submit', async (e) => {
@@ -68,6 +276,8 @@
             const start = document.getElementById('startLocation').value;
             const end = document.getElementById('endLocation').value;
             const seats = document.getElementById('seats').value;
+
+            currentVehicleId = vehicleId;
 
             try {
                 registerBtn.disabled = true;
@@ -89,14 +299,16 @@
                 registerBtn.innerHTML = '<span>📝 注册车辆</span>';
 
                 if (result.vehicle) {
-                    showNotification('✅ 车辆注册成功！', 'success');
+                    showNotification('✅ 车辆注册成功！');
+                    // 加入车辆房间接收实时通知
+                    joinVehicleRoom(vehicleId);
                 } else {
-                    showNotification('❌ 注册失败：' + (result.error || '未知错误'), 'error');
+                    showNotification('❌ 注册失败：' + (result.error || '未知错误'));
                 }
             } catch (error) {
                 registerBtn.disabled = false;
                 registerBtn.innerHTML = '<span>📝 注册车辆</span>';
-                showNotification('❌ 网络错误或服务器未启动', 'error');
+                showNotification('❌ 网络错误或服务器未启动');
             }
         });
 
@@ -105,18 +317,26 @@
             const vehicleId = document.getElementById('vehicleId').value;
 
             if (!vehicleId) {
-                showNotification('❌ 请先输入车辆ID', 'error');
+                showNotification('❌ 请先输入车辆ID');
+                return;
+            }
+
+            currentVehicleId = vehicleId;
+            joinVehicleRoom(vehicleId);
+            await refreshPassengerList();
+        });
+
+        // 刷新乘客列表
+        async function refreshPassengerList() {
+            const vehicleId = document.getElementById('vehicleId').value;
+
+            if (!vehicleId) {
                 return;
             }
 
             try {
-                checkBtn.disabled = true;
-                checkBtn.innerHTML = '<span class="loading"></span> 查询中...';
-
                 const response = await fetch(`/vehicle/check?vehicle_id=${vehicleId}`);
                 const result = await response.json();
-                checkBtn.disabled = false;
-                checkBtn.innerHTML = '<span>👥 查看乘客</span>';
 
                 passengerSection.classList.remove('hidden');
 
@@ -148,8 +368,8 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${passengers.map(p => `
-                                    <tr>
+                                ${passengers.map((p, index) => `
+                                    <tr class="${index === passengers.length - 1 ? 'passenger-row new' : ''}">
                                         <td>${p.id}</td>
                                         <td>${p.start}</td>
                                         <td>${p.end}</td>
@@ -161,8 +381,6 @@
                     `;
                 }
             } catch (error) {
-                checkBtn.disabled = false;
-                checkBtn.innerHTML = '<span>👥 查看乘客</span>';
                 passengerSection.classList.remove('hidden');
                 passengerContent.innerHTML = `
                     <div class="error-message">
@@ -170,19 +388,10 @@
                     </div>
                 `;
             }
-        });
-
-        function showNotification(message, type) {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            document.body.appendChild(notification);
-
-            setTimeout(() => {
-                notification.style.opacity = '0';
-                setTimeout(() => notification.remove(), 300);
-            }, 3000);
         }
+
+        // 页面加载时初始化 Socket
+        initSocket();
     </script>
 </body>
 </html>

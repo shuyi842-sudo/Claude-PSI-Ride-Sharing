@@ -1,0 +1,198 @@
+# 基于MP-TPSI的无人驾驶共享出行系统
+
+## 项目简介
+
+本项目是一个基于**隐私集合求交（PSI）**技术的无人驾驶拼车系统，解决传统拼车在无人驾驶环境下的身份确认和隐私保护问题。
+
+### 核心问题
+
+1. **身份确认难题**：无人驾驶环境中无法通过司机确认乘客身份
+2. **隐私泄露风险**：传统方案可能导致私人出行路线泄露
+3. **搭错车风险**：缺乏有效的身份验证机制
+
+### 解决方案
+
+采用 **MP-TPSI（Multi-Party Threshold PSI）协议**：
+- PSI隐私计算生成匹配验证码
+- 无需传输原始身份信息
+- 实现匹配精度与隐私保护的平衡
+
+## 功能特性
+
+### 核心功能
+
+| 功能 | 描述 |
+|------|------|
+| 乘客注册/匹配 | 发布出行需求，智能匹配合适车辆 |
+| 车辆注册/管理 | 注册车辆信息，查看匹配乘客列表 |
+| PSI验证码生成 | 基于乘客ID和车辆ID生成隐私保护验证码 |
+| 上车验证 | 通过PSI验证码验证乘客身份 |
+| 取消匹配 | 取消匹配并释放车辆座位 |
+| 实时推送 | WebSocket实时通知乘客匹配/上车/取消 |
+
+### PSI算法支持
+
+- **hash**: MD5哈希（兼容模式）
+- **ecc**: ECC双方PSI协议
+- **multi**: ECC多方PSI协议
+- **threshold**: 门限PSI协议
+
+### 管理后台
+
+- 系统统计数据仪表盘
+- 乘客/车辆/匹配数据管理
+- PSI模式动态切换
+- 系统重置功能
+
+### 安全机制
+
+- JWT令牌认证
+- 请求防重放攻击
+- 验证码有效期限制
+- HTTPS支持
+
+## 项目结构
+
+```
+D:\Claude_PSI_project/
+├── app.py                 # Flask后端主程序
+├── database.py            # SQLite数据库操作
+├── psi.py                 # MP-TPSI算法实现
+├── auth.py                # 安全认证模块
+├── config.py              # 配置管理
+├── test_api.py            # API测试套件（15个测试用例）
+├── test_psi.py            # PSI算法测试（7个测试用例）
+├── demo.py                # 系统演示脚本
+├── passenger.py           # Tkinter乘客端（桌面版）
+├── vehicle.py             # Tkinter车辆端（桌面版）
+├── requirements.txt        # Python依赖
+├── API.md                # API接口文档
+├── SECURITY.md            # 安全配置指南
+├── README.md             # 项目说明（本文件）
+├── CLAUDE.md             # 开发规范文档
+├── templates/             # HTML模板
+│   ├── index.html         # 首页
+│   ├── passenger.html     # 乘客端
+│   ├── vehicle.html      # 车辆端
+│   ├── verify.html       # 验证页面
+│   └── admin.html       # 管理后台
+└── static/
+    └── style.css         # 样式文件
+```
+
+## 快速开始
+
+### 环境要求
+
+- Python 3.8+
+- pip
+
+### 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 启动服务
+
+```bash
+python app.py
+```
+
+服务将运行在 `http://localhost:5000`
+
+### 访问界面
+
+| 界面 | URL |
+|------|-----|
+| 首页 | http://localhost:5000/ |
+| 乘客端 | http://localhost:5000/passenger |
+| 车辆端 | http://localhost:5000/vehicle |
+| 验证页面 | http://localhost:5000/verify |
+| 管理后台 | http://localhost:5000/admin |
+
+## 使用示例
+
+### 运行演示
+
+```bash
+# 先启动服务器
+python app.py
+
+# 在另一个终端运行演示
+python demo.py
+```
+
+### 运行测试
+
+```bash
+# API测试
+python test_api.py
+
+# PSI算法测试
+python test_psi.py
+```
+
+## API文档
+
+详细的API文档请参考 [API.md](API.md)
+
+## 安全配置
+
+HTTPS配置和安全设置请参考 [SECURITY.md](SECURITY.md)
+
+## PSI算法说明
+
+### 验证码生成
+
+```python
+# MD5哈希模式
+code = MD5(passenger_id + vehicle_id)[:6].upper()
+
+# ECC双方PSI模式
+shared_secret = ECDH(passenger_id, vehicle_id)
+code = SHA256("PSI_2P:" + shared_secret)[:6].upper()
+
+# 门限PSI模式
+code = SHA256("TH_PSI:" + passenger_id + ":" + vehicle_id + ":threshold")[:6].upper()
+```
+
+### 路线匹配
+
+基于Jaccard相似度计算路线匹配度：
+
+```
+similarity = 0.7 * Jaccard(route1, route2) + 0.3 * area_match
+```
+
+## 测试覆盖
+
+| 模块 | 测试数 | 状态 |
+|------|--------|------|
+| API接口 | 15 | ✅ 全部通过 |
+| PSI算法 | 7 | ✅ 全部通过 |
+| **总计** | **22** | **✅ 全部通过** |
+
+## 技术栈
+
+- **后端**: Flask, Flask-SocketIO, SQLite
+- **前端**: HTML5, CSS3, JavaScript (Fetch API, Socket.IO)
+- **密码学**: hashlib, hmac (PSI算法)
+- **安全**: JWT, 防重放攻击
+- **桌面版**: Tkinter (可选)
+
+## 开发规范
+
+详见 [CLAUDE.md](CLAUDE.md)
+
+## 许可证
+
+本项目仅用于学习和研究目的。
+
+## 贡献
+
+欢迎提交Issue和Pull Request！
+
+## 作者
+
+无人驾驶拼车系统研究项目

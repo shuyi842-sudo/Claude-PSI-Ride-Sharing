@@ -1,35 +1,44 @@
 """
 无人驾驶拼车系统 - Flask后端
 基于 PSI 隐私保护的共享出行系统
-使用 SQLite 数据库持久化
+使用 SQLite 数据库持久化 + WebSocket 实时更新 + MP-TPSI协议
 """
 
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit
 import hashlib
+import time
 from database import (
     init_db, reset_db, create_passenger, get_passenger, update_passenger_status,
     create_vehicle, get_vehicle, update_vehicle_status, update_vehicle_seats,
     get_available_vehicles, create_match, get_match_by_passenger,
-    get_match_by_vehicle, delete_match_by_passenger, reset_matches
+    get_match_by_vehicle, delete_match_by_passenger, reset_matches,
+    get_all_passengers, get_all_vehicles, get_all_matches
 )
+from psi import generate_match_code, route_similarity, get_psi_instance
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'psi-ride-sharing-secret-2024'
 CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # 初始化数据库
 init_db()
 
-
-def route_similarity(route1, route2):
-    """路线相似度计算（简化版，未来可替换为PSI）"""
-    area1 = route1[:3]
-    area2 = route2[:3]
-    return 0.9 if area1 == area2 else 0.1
+# PSI实例
+_psi = get_psi_instance()
 
 
 def psi_match(passenger_data, available_vehicles):
-    """PSI匹配算法（简化版）"""
+    """
+    PSI匹配算法（增强版）
+
+    基于PSI思想的路线相似度计算，支持：
+    - 区域匹配
+    - Jaccard相似度
+    - 可配置的匹配阈值
+    """
     best_match = None
     best_score = 0
     for vehicle in available_vehicles:
@@ -42,10 +51,22 @@ def psi_match(passenger_data, available_vehicles):
     return best_match
 
 
-def generate_match_code(p_id, v_id):
-    """生成PSI匹配验证码"""
-    raw = f"{p_id}{v_id}"
-    return hashlib.md5(raw.encode()).hexdigest()[:6].upper()
+# ========== PSI模式配置 ==========
+
+PSI_MODES = {
+    "hash": "MD5哈希（兼容模式）",
+    "ecc": "ECC双方PSI",
+    "multi": "ECC多方PSI",
+    "threshold": "门限PSI"
+}
+
+# 当前PSI模式（可通过API切换）
+current_psi_mode = "hash"
+
+
+def emit_to_vehicle(v_id, event, data):
+    """向特定车辆发送实时消息"""
+    socketio.emit(event, data, room=f"vehicle_{v_id}")
 
 
 # ========== 页面路由 ==========
@@ -68,6 +89,11 @@ def vehicle_page():
 @app.route("/verify")
 def verify_page():
     return render_template("verify.html")
+
+
+@app.route("/admin")
+def admin_page():
+    return render_template("admin.html")
 
 
 # ========== API 接口 ==========
@@ -119,7 +145,7 @@ def match():
 
     if matched_vehicle:
         v_id = matched_vehicle["id"]
-        match_code = generate_match_code(p_id, v_id)
+        match_code = generate_match_code(p_id, v_id, current_psi_mode)
 
         # 创建匹配记录
         create_match(p_id, v_id, match_code)
@@ -136,6 +162,12 @@ def match():
         matched_vehicle["seats"] -= 1
         if matched_vehicle["seats"] == 0:
             matched_vehicle["status"] = "full"
+
+        # 通知车辆端有新乘客匹配
+        emit_to_vehicle(v_id, "new_passenger", {
+            "passenger": passenger,
+            "vehicle": matched_vehicle
+        })
 
         return jsonify({
             "success": True,
@@ -175,11 +207,25 @@ def verify():
     v_id = data.get("vehicle_id")
     code = data.get("code")
 
-    expected_code = generate_match_code(p_id, v_id)
-    if code == expected_code:
-        return jsonify({"success": True, "message": "验证成功，可以上车！"})
+    expected_code = generate_match_code(p_id, v_id, current_psi_mode)
+    if code.upper() == expected_code.upper():
+        # 通知车辆端乘客已上车
+        emit_to_vehicle(v_id, "passenger_boarded", {
+            "passenger_id": p_id,
+            "timestamp": str(hashlib.md5(str(time.time()).encode()).hexdigest())[:8],
+            "psi_mode": current_psi_mode
+        })
+        return jsonify({
+            "success": True,
+            "message": "验证成功，可以上车！",
+            "psi_mode": current_psi_mode
+        })
     else:
-        return jsonify({"success": False, "message": "验证失败！"})
+        return jsonify({
+            "success": False,
+            "message": "验证失败！",
+            "psi_mode": current_psi_mode
+        })
 
 
 @app.route("/cancel", methods=["POST"])
@@ -212,6 +258,11 @@ def cancel_match():
     delete_match_by_passenger(p_id)
     update_passenger_status(p_id, "waiting")
 
+    # 通知车辆端有乘客取消
+    emit_to_vehicle(v_id, "passenger_cancelled", {
+        "passenger_id": p_id
+    })
+
     return jsonify({
         "success": True,
         "message": "匹配已取消，座位已释放"
@@ -222,13 +273,161 @@ def cancel_match():
 def reset_data():
     """重置所有数据（仅用于测试）"""
     reset_db()
+    socketio.emit("system_reset", {"message": "系统已重置"}, broadcast=True)
     return jsonify({"message": "数据已重置"})
+
+
+# ========== PSI配置API ==========
+
+@app.route("/psi/config", methods=["GET"])
+def get_psi_config():
+    """获取PSI配置"""
+    return jsonify({
+        "current_mode": current_psi_mode,
+        "available_modes": PSI_MODES,
+        "description": PSI_MODES.get(current_psi_mode, "")
+    })
+
+
+@app.route("/psi/config", methods=["POST"])
+def set_psi_config():
+    """设置PSI模式"""
+    global current_psi_mode
+    data = request.json
+    mode = data.get("mode", "hash")
+
+    if mode not in PSI_MODES:
+        return jsonify({"error": f"无效的PSI模式，可选: {list(PSI_MODES.keys())}"}), 400
+
+    current_psi_mode = mode
+    return jsonify({
+        "message": f"PSI模式已切换为: {PSI_MODES[mode]}",
+        "current_mode": current_psi_mode
+    })
+
+
+@app.route("/psi/verify", methods=["POST"])
+def psi_verify():
+    """PSI验证码验证（独立API）"""
+    data = request.json
+    p_id = data.get("passenger_id")
+    v_id = data.get("vehicle_id")
+    code = data.get("code")
+
+    expected = generate_match_code(p_id, v_id, current_psi_mode)
+    is_valid = expected.upper() == code.upper()
+
+    return jsonify({
+        "valid": is_valid,
+        "expected": expected if is_valid else None,
+        "mode": current_psi_mode
+    })
+
+
+# ========== 管理后台API ==========
+
+@app.route("/admin/passengers", methods=["GET"])
+def admin_get_passengers():
+    """获取所有乘客列表"""
+    return jsonify(get_all_passengers())
+
+
+@app.route("/admin/vehicles", methods=["GET"])
+def admin_get_vehicles():
+    """获取所有车辆列表"""
+    return jsonify(get_all_vehicles())
+
+
+@app.route("/admin/matches", methods=["GET"])
+def admin_get_matches():
+    """获取所有匹配记录"""
+    return jsonify(get_all_matches())
+
+
+@app.route("/admin/stats", methods=["GET"])
+def admin_get_stats():
+    """获取系统统计数据"""
+    passengers = get_all_passengers()
+    vehicles = get_all_vehicles()
+    matches = get_all_matches()
+
+    matched_passengers = len([p for p in passengers if p["status"] == "matched"])
+    waiting_passengers = len([p for p in passengers if p["status"] == "waiting"])
+    available_vehicles = len([v for v in vehicles if v["status"] == "available"])
+    full_vehicles = len([v for v in vehicles if v["status"] == "full"])
+
+    return jsonify({
+        "total_passengers": len(passengers),
+        "matched_passengers": matched_passengers,
+        "waiting_passengers": waiting_passengers,
+        "total_vehicles": len(vehicles),
+        "available_vehicles": available_vehicles,
+        "full_vehicles": full_vehicles,
+        "total_matches": len(matches),
+        "psi_mode": current_psi_mode
+    })
+
+
+# ========== SocketIO 事件 ==========
+
+@socketio.on('connect')
+def handle_connect():
+    """客户端连接"""
+    print(f"客户端连接: {request.sid}")
+    emit('connected', {'message': '连接成功'})
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """客户端断开"""
+    print(f"客户端断开: {request.sid}")
+
+
+@socketio.on('join_vehicle')
+def handle_join_vehicle(data):
+    """加入车辆房间"""
+    v_id = data.get('vehicle_id')
+    if v_id:
+        room = f"vehicle_{v_id}"
+        join_room(room)
+        print(f"客户端 {request.sid} 加入车辆房间: {v_id}")
+        emit('joined', {'vehicle_id': v_id}, room=request.sid)
+
+
+@socketio.on('leave_vehicle')
+def handle_leave_vehicle():
+    """离开车辆房间"""
+    leave_room()
+    print(f"客户端 {request.sid} 离开车辆房间")
+
+
+@socketio.on('vehicle_status_update')
+def handle_vehicle_status(data):
+    """车辆状态更新（用于心跳）"""
+    v_id = data.get('vehicle_id')
+    emit('vehicle_status', {'vehicle_id': v_id, 'timestamp': data.get('timestamp')},
+         room=f"vehicle_{v_id}", include_self=False)
+
+
+def join_room(room):
+    """加入房间"""
+    from flask_socketio import join_room
+    join_room(room)
+
+
+def leave_room():
+    """离开所有房间"""
+    from flask_socketio import leave_room, rooms
+    client_rooms = rooms(request.sid)
+    for room in client_rooms:
+        leave_room(room)
 
 
 if __name__ == "__main__":
     print("=" * 50)
     print("无人驾驶拼车系统 MVP")
     print("基于 PSI 隐私保护的共享出行系统")
+    print("WebSocket 实时推送已启用")
     print("后端服务启动中... http://localhost:5000")
     print("=" * 50)
-    app.run(debug=True, port=5000)
+    socketio.run(app, debug=True, port=5000)
