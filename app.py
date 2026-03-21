@@ -424,10 +424,35 @@ def leave_room():
 
 
 if __name__ == "__main__":
+    import socket
+    import platform
+
+    # 获取本机IP地址
+    def get_local_ip():
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except:
+            return "127.0.0.1"
+
+    local_ip = get_local_ip()
+
     print("=" * 50)
     print("无人驾驶拼车系统 MVP")
     print("基于 PSI 隐私保护的共享出行系统")
     print("WebSocket 实时推送已启用")
-    print("后端服务启动中... http://localhost:5000")
     print("=" * 50)
-    socketio.run(app, debug=True, port=5000)
+    print(f"后端服务启动中...")
+    print(f"  本机访问: http://localhost:5000")
+    print(f"  局域网访问: http://{local_ip}:5000")
+    print()
+    print("手机访问步骤:")
+    print(f"1. 确保手机和电脑在同一WiFi网络")
+    print(f"2. 在手机浏览器输入: http://{local_ip}:5000")
+    print("=" * 50)
+
+    # 监听0.0.0.0让局域网可访问
+    socketio.run(app, debug=True, host="0.0.0.0", port=5000)

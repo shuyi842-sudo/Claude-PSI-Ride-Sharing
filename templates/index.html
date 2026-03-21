@@ -2,31 +2,89 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>无人驾驶拼车系统</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 500px;
+            padding: 10px;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+        }
+
+        .selection-box {
+            padding: 30px 20px;
+        }
+
+        .selection-card {
+            padding: 25px 20px;
+            margin-bottom: 15px;
+        }
+
+        .selection-card .icon {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .selection-card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+
+        .selection-card p {
+            font-size: 0.9rem;
+        }
+
+        .welcome-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .welcome-banner h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.3rem;
+        }
+
+        .welcome-banner p {
+            margin: 5px 0;
+            opacity: 0.9;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🚗 无人驾驶拼车系统 MVP</h1>
-            <p class="subtitle">基于PSI隐私保护的智能拼车平台</p>
+        <!-- 欢迎横幅 -->
+        <div class="welcome-banner">
+            <div style="font-size: 3rem;">🚗</div>
+            <h2>无人驾驶拼车系统</h2>
+            <p>基于PSI隐私保护 · 安全便捷出行</p>
         </div>
 
         <div class="selection-box">
-            <h2>请选择您的身份</h2>
+            <h2 style="margin-bottom: 20px; text-align: center;">请选择您的身份</h2>
 
             <div class="button-group">
                 <a href="/passenger" class="selection-card passenger-card">
                     <div class="icon">👤</div>
-                    <h3>乘客端</h3>
+                    <h3>我要拼车</h3>
                     <p>发布出行需求，匹配合适车辆</p>
                 </a>
 
                 <a href="/vehicle" class="selection-card vehicle-card">
                     <div class="icon">🚙</div>
-                    <h3>车辆端</h3>
-                    <p>注册车辆信息，查看匹配乘客</p>
+                    <h3>我是车主</h3>
+                    <p>注册车辆，查看匹配乘客</p>
                 </a>
 
                 <a href="/verify" class="selection-card verify-card">
@@ -34,16 +92,13 @@
                     <h3>上车验证</h3>
                     <p>PSI隐私保护身份验证</p>
                 </a>
-
-                <a href="/admin" class="selection-card admin-card" style="background: linear-gradient(135deg, #37474f 0%, #263238 100%); border-color: #37474f;">
-                    <div class="icon">🔧</div>
-                    <h3>管理后台</h3>
-                    <p>系统监控与数据管理</p>
-                </a>
             </div>
         </div>
 
-        <div class="footer">
+        <div class="footer" style="margin-top: 20px;">
+            <p style="color: #888; font-size: 0.85rem;">
+                📱 手机用户请确保与服务器在同一WiFi网络
+            </p>
             <p>Powered by Flask + PSI隐私计算</p>
         </div>
     </div>
