@@ -45,7 +45,7 @@ def psi_match(passenger_data, available_vehicles):
         if vehicle["seats"] < 1:
             continue
         score = route_similarity(passenger_data["route"], vehicle["route"])
-        if score > best_score and score >= 0.7:
+        if score > best_score and score >= 0.38:  # 阈值0.38，支持部分匹配（约40%相似度）
             best_score = score
             best_match = vehicle
     return best_match

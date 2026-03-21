@@ -122,25 +122,76 @@ class ECDHPSI:
         """
         计算路线相似度（基于PSI的思想）
 
-        使用Jaccard相似度的变体，模拟PSI计算交集
+        多因素综合评分：
+        1. 区域前缀匹配（同一城市/区域）
+        2. Jaccard字符相似度
+        3. 共同关键字匹配
         """
-        set1 = set(route1.lower())
-        set2 = set(route2.lower())
+        route1_lower = route1.lower()
+        route2_lower = route2.lower()
+
+        # 1. 区域前缀匹配权重 (40%)
+        # 检查城市前缀（如"北京"、"上海"等）
+        city_prefixes = ["北京", "上海", "广州", "深圳", "成都", "杭州", "武汉", "西安"]
+        city_match = 0
+        for prefix in city_prefixes:
+            if route1_lower.startswith(prefix) and route2_lower.startswith(prefix):
+                city_match = 0.85  # 同城
+                break
+            elif route1_lower.startswith(prefix) or route2_lower.startswith(prefix):
+                city_match = 0.6  # 一方包含城市名
+                break
+        # 检查共同字符匹配
+        common_chars = set(route1_lower) & set(route2_lower)
+        if len(common_chars) >= 2:
+            city_match = max(city_match, 0.3)
+
+        # 2. 地点类型匹配 (20%)
+        # 检查是否都是同一类型地点（如都是"科技园"、都是"地铁"）
+        type_keywords = [
+            (["科技园", "园区", "产业园", "科技", "园区"], 0.8),
+            (["地铁", "地铁站", "站", "subway"], 0.6),
+            (["大学", "学院", "学校", "univ", "college"], 0.8),
+            (["机场", "航站楼", "t1", "t2", "t3", "airport"], 0.8),
+            (["医院", "医", "hospital"], 0.8),
+            (["商场", "购物中心", "mall", "购物"], 0.8),
+            (["中心", "广场", "plaza", "center"], 0.5),
+        ]
+        type_match = 0
+        for keywords, weight in type_keywords:
+            if any(k in route1_lower for k in keywords) and any(k in route2_lower for k in keywords):
+                type_match = weight
+                break
+
+        # 3. Jaccard字符相似度 (30%)
+        set1 = set(route1_lower)
+        set2 = set(route2_lower)
 
         if not set1 and not set2:
-            return 1.0
+            jaccard = 1.0
+        else:
+            intersection = set1 & set2
+            union = set1 | set2
+            jaccard = len(intersection) / len(union) if union else 0
 
-        # Jaccard相似度：|A ∩ B| / |A ∪ B|
-        intersection = set1 & set2
-        union = set1 | set2
-
-        jaccard = len(intersection) / len(union) if union else 0
-
-        # 区域权重：如果前3个字符相同，给予更高分数
-        area_match = 1 if route1[:3] == route2[:3] else 0
+        # 4. 简单前缀匹配 (10%)
+        # 如果前2-3个字符相同
+        prefix_match = 0
+        min_len = min(len(route1), len(route2))
+        for i in range(2, min(4, min_len + 1)):
+            if route1_lower[:i] == route2_lower[:i]:
+                prefix_match = i / min_len * 0.5
+                break
 
         # 综合相似度
-        return 0.7 * jaccard + 0.3 * area_match
+        similarity = (
+            0.35 * city_match +    # 城市匹配权重
+            0.20 * type_match +    # 地点类型匹配权重
+            0.35 * jaccard +        # Jaccard相似度权重
+            0.10 * prefix_match     # 前缀匹配权重
+        )
+
+        return similarity
 
 
 class MultiPartyPSI:
