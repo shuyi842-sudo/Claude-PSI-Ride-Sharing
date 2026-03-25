@@ -312,104 +312,80 @@ class ECDHPSI:
                          route_path1: str = None,
                          route_path2: str = None) -> float:
         """
-        计算路线相似度
+        计算路线相似度（使用加密空间PSI）
 
-        优先使用真实路径重叠度（如提供route_path），否则使用文本相似度
+        真正的隐私集合求交：在加密空间完成所有计算，不接触原始坐标数据。
 
         Args:
-            route1: 路线1文本描述
-            route2: 路线2文本描述
-            route_path1: 路线1的路径点JSON字符串（可选）
-            route_path2: 路线2的路径点JSON字符串（可选）
+            route1: 路线1文本描述（仅用于日志，不参与PSI）
+            route2: 路线2文本描述（仅用于日志，不参与PSI）
+            route_path1: 路线1的路径点JSON字符串 [[lng, lat], ...]
+            route_path2: 路线2的路径点JSON字符串 [[lng, lat], ...]
 
         Returns:
             相似度分数 (0.0 - 1.0)
         """
-        # 如果有路径点数据，使用真实路径重叠度计算
-        if route_path1 and route_path2:
-            try:
-                from geo_route import parse_route_path, calculate_route_overlap
-                path1 = parse_route_path(route_path1)
-                path2 = parse_route_path(route_path2)
-                if path1 and path2:
-                    overlap = calculate_route_overlap(path1, path2)
-                    # 提高重叠度权重，确保高重叠路径优先匹配
-                    return overlap
-            except Exception as e:
-                print(f"路径重叠度计算失败，回退到文本匹配: {e}")
-        """
-        计算路线相似度（基于PSI的思想）
+        # PSI需要路径点数据
+        if not route_path1 or not route_path2:
+            return 0.0
 
-        多因素综合评分：
-        1. 区域前缀匹配（同一城市/区域）
-        2. Jaccard字符相似度
-        3. 共同关键字匹配
-        """
-        route1_lower = route1.lower()
-        route2_lower = route2.lower()
+        try:
+            import json
+            from crypto_psi import EncryptedSpacePSI
 
-        # 1. 区域前缀匹配权重 (40%)
-        # 检查城市前缀（如"北京"、"上海"等）
-        city_prefixes = ["北京", "上海", "广州", "深圳", "成都", "杭州", "武汉", "西安"]
-        city_match = 0
-        for prefix in city_prefixes:
-            if route1_lower.startswith(prefix) and route2_lower.startswith(prefix):
-                city_match = 0.85  # 同城
-                break
-            elif route1_lower.startswith(prefix) or route2_lower.startswith(prefix):
-                city_match = 0.6  # 一方包含城市名
-                break
-        # 检查共同字符匹配
-        common_chars = set(route1_lower) & set(route2_lower)
-        if len(common_chars) >= 2:
-            city_match = max(city_match, 0.3)
+            # 解析路径点
+            path1 = json.loads(route_path1) if isinstance(route_path1, str) else route_path1
+            path2 = json.loads(route_path2) if isinstance(route_path2, str) else route_path2
 
-        # 2. 地点类型匹配 (20%)
-        # 检查是否都是同一类型地点（如都是"科技园"、都是"地铁"）
-        type_keywords = [
-            (["科技园", "园区", "产业园", "科技", "园区"], 0.8),
-            (["地铁", "地铁站", "站", "subway"], 0.6),
-            (["大学", "学院", "学校", "univ", "college"], 0.8),
-            (["机场", "航站楼", "t1", "t2", "t3", "airport"], 0.8),
-            (["医院", "医", "hospital"], 0.8),
-            (["商场", "购物中心", "mall", "购物"], 0.8),
-            (["中心", "广场", "plaza", "center"], 0.5),
-        ]
-        type_match = 0
-        for keywords, weight in type_keywords:
-            if any(k in route1_lower for k in keywords) and any(k in route2_lower for k in keywords):
-                type_match = weight
-                break
+            if not path1 or not path2:
+                return 0.0
 
-        # 3. Jaccard字符相似度 (30%)
-        set1 = set(route1_lower)
-        set2 = set(route2_lower)
+            # 转换为坐标列表 [(lat, lng), ...]
+            coords1 = [(float(p[1]), float(p[0])) for p in path1 if len(p) >= 2]
+            coords2 = [(float(p[1]), float(p[0])) for p in path2 if len(p) >= 2]
 
-        if not set1 and not set2:
-            jaccard = 1.0
-        else:
-            intersection = set1 & set2
-            union = set1 | set2
-            jaccard = len(intersection) / len(union) if union else 0
+            if not coords1 or not coords2:
+                return 0.0
 
-        # 4. 简单前缀匹配 (10%)
-        # 如果前2-3个字符相同
-        prefix_match = 0
-        min_len = min(len(route1), len(route2))
-        for i in range(2, min(4, min_len + 1)):
-            if route1_lower[:i] == route2_lower[:i]:
-                prefix_match = i / min_len * 0.5
-                break
+            # 使用加密空间PSI进行匹配
+            psi = EncryptedSpacePSI()
 
-        # 综合相似度
-        similarity = (
-            0.35 * city_match +    # 城市匹配权重
-            0.20 * type_match +    # 地点类型匹配权重
-            0.35 * jaccard +        # Jaccard相似度权重
-            0.10 * prefix_match     # 前缀匹配权重
-        )
+            # 生成全局盲因子（双方使用相同因子，确保可比较）
+            global_blind = secrets.randbelow(self.curve_order)
 
-        return similarity
+            # 在加密空间盲化两条路线
+            blinded_route1 = psi.blind_route_from_coordinates(
+                coords1, "route1", blind_factor=global_blind
+            )
+            blinded_route2 = psi.blind_route_from_coordinates(
+                coords2, "route2", blind_factor=global_blind
+            )
+
+            # 在加密空间计算交集（不接触原始坐标）
+            encrypted_intersection = psi.encrypted_intersection(
+                blinded_route1, blinded_route2, verify_factor_match=True
+            )
+
+            # 根据加密交集结果计算相似度
+            # 相似度 = 匹配点数 / 两条路线点数的较小值
+            min_points = min(len(coords1), len(coords2))
+            if min_points == 0:
+                return 0.0
+
+            similarity = encrypted_intersection.match_count / min_points
+            similarity = min(similarity, 1.0)  # 确保不超过1
+
+            return similarity
+
+        except (json.JSONDecodeError, KeyError, IndexError, TypeError) as e:
+            print(f"PSI路径解析失败: {e}")
+            return 0.0
+        except ImportError:
+            print("警告: crypto_psi模块不可用，无法进行PSI匹配")
+            return 0.0
+        except Exception as e:
+            print(f"PSI计算异常: {e}")
+            return 0.0
 
 
 class SecureMatchCode:
