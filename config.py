@@ -46,6 +46,11 @@ class Config:
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
     LOG_FILE = os.getenv('LOG_FILE', 'app.log')
 
+    # 高德地图API配置
+    AMAP_KEY = os.getenv('AMAP_KEY', 'c84d183be79e2f6d4ec4d361596e37b6')  # 高德开发者Web服务API Key
+    AMAP_GEOCODE_URL = 'https://restapi.amap.com/v3/geocode/geo'
+    AMAP_DRIVING_URL = 'https://restapi.amap.com/v3/direction/driving'
+
 
 class DevelopmentConfig(Config):
     """开发环境配置"""

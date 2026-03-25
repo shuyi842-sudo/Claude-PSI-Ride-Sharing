@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>乘客端 - 无人驾驶拼车</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
@@ -92,29 +92,6 @@
             opacity: 0.9;
         }
 
-        .location-suggestions {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-
-        .location-tag {
-            background: #f5f7fa;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            padding: 10px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .location-tag:active, .location-tag.selected {
-            background: #e3f2fd;
-            border-color: #2196f3;
-            color: #2196f3;
-        }
-
         .status-tips {
             background: #fff3e0;
             border-left: 4px solid #ff9800;
@@ -132,6 +109,52 @@
             margin: 4px 0;
             font-size: 0.9rem;
         }
+
+        /* 移动端优化 */
+        @media (max-width: 480px) {
+            .container {
+                padding: 5px;
+            }
+
+            .header h1 {
+                font-size: 1.3rem;
+            }
+
+            .card {
+                padding: 15px;
+            }
+
+            .btn {
+                min-height: 44px; /* 触摸友好的最小高度 */
+                font-size: 1rem;
+            }
+
+            .form-group input {
+                padding: 12px 14px; /* 触摸友好的输入框 */
+                font-size: 16px; /* 防止iOS自动缩放 */
+            }
+
+            .verification-code {
+                font-size: 1.5rem;
+                padding: 10px;
+            }
+
+            .match-details p {
+                font-size: 0.85rem;
+            }
+
+            .status-tips {
+                padding: 10px;
+            }
+
+            .status-tips h4 {
+                font-size: 0.9rem;
+            }
+
+            .status-tips p {
+                font-size: 0.8rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -144,14 +167,6 @@
         <div class="card">
             <h2 style="margin-bottom: 15px;">📍 出行信息</h2>
 
-            <!-- 快速选择 -->
-            <div class="location-suggestions" id="locationSuggestions">
-                <div class="location-tag" onclick="selectLocation('中关村', '西站')">🏢 北京中关村 → 西站</div>
-                <div class="location-tag" onclick="selectLocation('科技园', '地铁站')">🏭 科技园 → 地铁站</div>
-                <div class="location-tag" onclick="selectLocation('大学城', '商业中心')">🎓 大学城 → 商业中心</div>
-                <div class="location-tag" onclick="selectLocation('机场T3', '市区')">✈️ 机场T3 → 市区</div>
-            </div>
-
             <form id="passengerForm">
                 <div class="form-group">
                     <label for="passengerId">👤 你的乘客ID（手机号后4位）</label>
@@ -161,12 +176,12 @@
 
                 <div class="form-group">
                     <label for="startLocation">🚩 出发地</label>
-                    <input type="text" id="startLocation" placeholder="输入起点" required>
+                    <input type="text" id="startLocation" placeholder="请输入出发地址" required>
                 </div>
 
                 <div class="form-group">
                     <label for="endLocation">🎯 目的地</label>
-                    <input type="text" id="endLocation" placeholder="输入目的地" required>
+                    <input type="text" id="endLocation" placeholder="请输入目的地地址" required>
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="matchBtn" style="font-size: 1.1rem; padding: 16px;">
@@ -196,16 +211,6 @@
         let currentPassengerId = null;
         let matchedVehicleId = null;
         let matchCode = '';
-
-        // 快速选择地点
-        function selectLocation(start, end) {
-            document.getElementById('startLocation').value = start;
-            document.getElementById('endLocation').value = end;
-
-            // 高亮选中的标签
-            document.querySelectorAll('.location-tag').forEach(tag => tag.classList.remove('selected'));
-            event.target.classList.add('selected');
-        }
 
         // 生成随机乘客ID
         function generatePassengerId() {

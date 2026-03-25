@@ -234,6 +234,20 @@ body {
     background-color: #d32f2f;
 }
 
+.btn-success {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+    background-color: #388E3C;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+}
+
 /* Loading Animation */
 .loading {
     display: inline-block;

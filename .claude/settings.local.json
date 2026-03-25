@@ -5,7 +5,23 @@
       "Bash(python:*)",
       "Bash(pip --version)",
       "Bash(pip list:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(curl:*)",
+      "Bash(sqlite3:*)",
+      "Bash(ls -la *.py)",
+      "Bash(pkill:*)",
+      "Bash(grep -E \"\\\\.\\(py|html|md|txt|db\\)$\")",
+      "Bash(start cmd:*)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :5000)",
+      "Bash(del:*)",
+      "Bash(timeout 3s ping -n 4 127.0.0.1)",
+      "Bash(taskkill:*)",
+      "Bash(timeout 5s ping -n 6 127.0.0.1)",
+      "Bash(grep -E \"^-.*\\\\.py$\")",
+      "Bash(cd:*)",
+      "Bash(grep -n \"fetch\" templates/*.html)",
+      "Bash(gh --version)"
     ]
   }
 }

@@ -38,7 +38,12 @@ def init_db():
                 end TEXT NOT NULL,
                 route TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'waiting',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                start_lng REAL,
+                start_lat REAL,
+                end_lng REAL,
+                end_lat REAL,
+                route_path TEXT
             )
         """)
 
@@ -51,7 +56,12 @@ def init_db():
                 route TEXT NOT NULL,
                 seats INTEGER NOT NULL DEFAULT 4,
                 status TEXT NOT NULL DEFAULT 'available',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                start_lng REAL,
+                start_lat REAL,
+                end_lng REAL,
+                end_lat REAL,
+                route_path TEXT
             )
         """)
 
@@ -88,6 +98,45 @@ def reset_db():
         print("✓ 数据库已重置")
 
 
+def migrate_add_geo_fields():
+    """
+    数据库迁移：添加地理坐标字段
+
+    为现有的passengers和vehicles表添加经纬度和路径字段
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 检查并添加passengers表的地理字段
+        cursor.execute("PRAGMA table_info(passengers)")
+        columns = [col[1] for col in cursor.fetchall()]
+
+        geo_fields = ['start_lng', 'start_lat', 'end_lng', 'end_lat', 'route_path']
+        for field in geo_fields:
+            if field not in columns:
+                try:
+                    cursor.execute(f"ALTER TABLE passengers ADD COLUMN {field} {'REAL' if 'lng' in field or 'lat' in field else 'TEXT'}")
+                    print(f"  ✓ 添加 passengers.{field} 字段")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e):
+                        print(f"  ✗ 添加 passengers.{field} 失败: {e}")
+
+        # 检查并添加vehicles表的地理字段
+        cursor.execute("PRAGMA table_info(vehicles)")
+        columns = [col[1] for col in cursor.fetchall()]
+
+        for field in geo_fields:
+            if field not in columns:
+                try:
+                    cursor.execute(f"ALTER TABLE vehicles ADD COLUMN {field} {'REAL' if 'lng' in field or 'lat' in field else 'TEXT'}")
+                    print(f"  ✓ 添加 vehicles.{field} 字段")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e):
+                        print(f"  ✗ 添加 vehicles.{field} 失败: {e}")
+
+        print("✓ 数据库迁移完成")
+
+
 # 乘客操作
 def passenger_exists(p_id):
     """检查乘客是否存在"""
@@ -108,16 +157,42 @@ def get_passenger(p_id):
         return None
 
 
-def create_passenger(p_id, start, end):
-    """创建乘客"""
+def create_passenger(p_id, start, end, start_lng=None, start_lat=None,
+                    end_lng=None, end_lat=None, route_path=None):
+    """
+    创建乘客
+
+    Args:
+        p_id: 乘客ID
+        start: 出发地（文本）
+        end: 目的地（文本）
+        start_lng, start_lat: 出发地经纬度（可选）
+        end_lng, end_lat: 目的地经纬度（可选）
+        route_path: 路径点序列JSON字符串（可选）
+    """
     with get_db() as conn:
         cursor = conn.cursor()
         route = f"{start}-{end}"
-        cursor.execute(
-            "INSERT OR REPLACE INTO passengers (id, start, end, route, status) VALUES (?, ?, ?, ?, 'waiting')",
-            (p_id, start, end, route)
-        )
-        return {"id": p_id, "start": start, "end": end, "route": route, "status": "waiting"}
+
+        # 构建SQL和参数
+        sql = """INSERT OR REPLACE INTO passengers
+                 (id, start, end, route, status, start_lng, start_lat, end_lng, end_lat, route_path)
+                 VALUES (?, ?, ?, ?, 'waiting', ?, ?, ?, ?, ?)"""
+        params = (p_id, start, end, route, start_lng, start_lat, end_lng, end_lat, route_path)
+
+        cursor.execute(sql, params)
+        return {
+            "id": p_id,
+            "start": start,
+            "end": end,
+            "route": route,
+            "status": "waiting",
+            "start_lng": start_lng,
+            "start_lat": start_lat,
+            "end_lng": end_lng,
+            "end_lat": end_lat,
+            "route_path": route_path
+        }
 
 
 def update_passenger_status(p_id, status):
@@ -155,16 +230,44 @@ def get_vehicle(v_id):
         return None
 
 
-def create_vehicle(v_id, start, end, seats=4):
-    """创建车辆"""
+def create_vehicle(v_id, start, end, seats=4, start_lng=None, start_lat=None,
+                  end_lng=None, end_lat=None, route_path=None):
+    """
+    创建车辆
+
+    Args:
+        v_id: 车辆ID
+        start: 出发地（文本）
+        end: 目的地（文本）
+        seats: 座位数
+        start_lng, start_lat: 出发地经纬度（可选）
+        end_lng, end_lat: 目的地经纬度（可选）
+        route_path: 路径点序列JSON字符串（可选）
+    """
     with get_db() as conn:
         cursor = conn.cursor()
         route = f"{start}-{end}"
-        cursor.execute(
-            "INSERT OR REPLACE INTO vehicles (id, start, end, route, seats, status) VALUES (?, ?, ?, ?, ?, 'available')",
-            (v_id, start, end, route, seats)
-        )
-        return {"id": v_id, "start": start, "end": end, "route": route, "seats": seats, "status": "available"}
+
+        # 构建SQL和参数
+        sql = """INSERT OR REPLACE INTO vehicles
+                 (id, start, end, route, seats, status, start_lng, start_lat, end_lng, end_lat, route_path)
+                 VALUES (?, ?, ?, ?, ?, 'available', ?, ?, ?, ?, ?)"""
+        params = (v_id, start, end, route, seats, start_lng, start_lat, end_lng, end_lat, route_path)
+
+        cursor.execute(sql, params)
+        return {
+            "id": v_id,
+            "start": start,
+            "end": end,
+            "route": route,
+            "seats": seats,
+            "status": "available",
+            "start_lng": start_lng,
+            "start_lat": start_lat,
+            "end_lng": end_lng,
+            "end_lat": end_lat,
+            "route_path": route_path
+        }
 
 
 def update_vehicle_status(v_id, status):
