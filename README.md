@@ -37,6 +37,9 @@
 - **ecc**: ECC双方PSI协议
 - **multi**: ECC多方PSI协议
 - **threshold**: 门限PSI协议
+- **lagrange**: 拉格朗日插值PSI+PFE
+- **geo**: 加密空间PSI
+- **mptpsi**: MP-TPSI多方门限协议
 
 ### 管理后台
 
@@ -56,27 +59,32 @@
 
 ```
 D:\Claude_PSI_project/
-├── app.py                 # Flask后端主程序
+├── app_integrated.py      # Flask后端主程序（集成版）
 ├── database.py            # SQLite数据库操作
 ├── psi.py                 # MP-TPSI算法实现
-├── auth.py                # 安全认证模块
 ├── config.py              # 配置管理
-├── test_api.py            # API测试套件（15个测试用例）
-├── test_psi.py            # PSI算法测试（7个测试用例）
-├── demo.py                # 系统演示脚本
-├── passenger.py           # Tkinter乘客端（桌面版）
-├── vehicle.py             # Tkinter车辆端（桌面版）
-├── requirements.txt        # Python依赖
-├── API.md                # API接口文档
-├── SECURITY.md            # 安全配置指南
+├── lagrange_psi.py        # 拉格朗日插值PSI+PFE
+├── mp_tpsi.py             # MP-TPSI多方门限协议
+├── geo_route.py           # 加密空间PSI
+├── bloom_filter.py        # 布隆过滤器
+├── spatial_index.py       # 空间索引
+├── match_engine.py        # 匹配引擎
+├── recommendation.py      # 推荐算法
+├── tracking.py            # 行程追踪
+├── privacy.py             # 隐私保护模块
+├── test_admin.py          # 管理后台测试
+├── test_mptpsi.py         # MP-TPSI测试
+├── test_lagrange_psi.py   # 拉格朗日PSI测试
+├── requirements.txt       # Python依赖
+├── PSI_IMPLEMENTATIONS.md # PSI协议实现文档
 ├── README.md             # 项目说明（本文件）
 ├── CLAUDE.md             # 开发规范文档
-├── templates/             # HTML模板
-│   ├── index.html         # 首页
-│   ├── passenger.html     # 乘客端
+├── templates/            # HTML模板
+│   ├── index.html        # 首页
+│   ├── passenger.html    # 乘客端
 │   ├── vehicle.html      # 车辆端
 │   ├── verify.html       # 验证页面
-│   └── admin.html       # 管理后台
+│   └── admin.html        # 管理后台
 └── static/
     └── style.css         # 样式文件
 ```
@@ -97,7 +105,7 @@ pip install -r requirements.txt
 ### 启动服务
 
 ```bash
-python app.py
+python app_integrated.py
 ```
 
 服务将运行在 `http://localhost:5000`
@@ -112,35 +120,9 @@ python app.py
 | 验证页面 | http://localhost:5000/verify |
 | 管理后台 | http://localhost:5000/admin |
 
-## 使用示例
-
-### 运行演示
-
-```bash
-# 先启动服务器
-python app.py
-
-# 在另一个终端运行演示
-python demo.py
-```
-
-### 运行测试
-
-```bash
-# API测试
-python test_api.py
-
-# PSI算法测试
-python test_psi.py
-```
-
 ## API文档
 
-详细的API文档请参考 [API.md](API.md)
-
-## 安全配置
-
-HTTPS配置和安全设置请参考 [SECURITY.md](SECURITY.md)
+详细的API文档请参考项目代码中的注释和测试文件。
 
 ## PSI算法说明
 
@@ -170,17 +152,18 @@ similarity = 0.7 * Jaccard(route1, route2) + 0.3 * area_match
 
 | 模块 | 测试数 | 状态 |
 |------|--------|------|
-| API接口 | 15 | ✅ 全部通过 |
-| PSI算法 | 7 | ✅ 全部通过 |
-| **总计** | **22** | **✅ 全部通过** |
+| 管理后台API | 7 | ✅ 全部通过 |
+| MP-TPSI | 5 | ✅ 全部通过 |
+| 拉格朗日PSI | 6 | ✅ 全部通过 |
+| **总计** | **18** | **✅ 全部通过** |
 
 ## 技术栈
 
 - **后端**: Flask, Flask-SocketIO, SQLite
 - **前端**: HTML5, CSS3, JavaScript (Fetch API, Socket.IO)
-- **密码学**: hashlib, hmac (PSI算法)
+- **密码学**: hashlib, cryptography, shamir (PSI算法)
 - **安全**: JWT, 防重放攻击
-- **桌面版**: Tkinter (可选)
+- **空间计算**: geopy, 空间索引
 
 ## 开发规范
 
